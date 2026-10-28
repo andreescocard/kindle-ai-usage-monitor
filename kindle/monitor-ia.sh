@@ -56,8 +56,18 @@ run() {
     rlog "start bat=$(battery)"
     lipc-set-prop com.lab126.powerd preventScreenSaver 1
     lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null
-    # Stop the Kindle UI so it doesn't redraw over the monitor or react to taps.
-    stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
+    # Freeze the Kindle UI (the cvm Java process) so it doesn't redraw over the monitor or react to
+    # taps. Resuming it on exit takes seconds; restarting lab126_gui takes about a minute.
+    # Without cvm, fall back to stopping the UI.
+    PAUSED=0
+    if killall -STOP cvm 2>/dev/null; then
+        PAUSED=1
+        # The status bar (pillow) runs outside cvm and keeps drawing the clock: hide it too.
+        lipc-set-prop com.lab126.pillow disableEnablePillow disable 2>/dev/null
+    else
+        stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
+    fi
+    rlog "ui paused=$PAUSED app=$(lipc-get-prop com.lab126.appmgrd activeApp 2>/dev/null)"
     sleep 2
     $FBINK -q -c -f -m -y 20 "AI Monitor - connecting..."
 
@@ -73,15 +83,19 @@ run() {
         if fetch; then
             fails=0
             wifi_off
+            # Turning Wi-Fi off makes the Kindle draw its airplane icon a moment later, so wait for it
+            # and always redraw (unchanged content redraws without a visible flash).
+            sleep 3
             if ! cmp -s "$IMG.new" "$IMG"; then
                 mv "$IMG.new" "$IMG"
                 n=$((n + 1))
-                # Full flashing refresh every 10 updates to clear e-ink ghosting.
-                if [ $((n % 10)) -eq 1 ]; then
-                    $FBINK -q -f -g file="$IMG"
-                else
-                    $FBINK -q -g file="$IMG"
-                fi
+            fi
+            # Full flashing refresh every 10 updates to clear e-ink ghosting.
+            if [ $((n % 10)) -eq 1 ] && [ "$n" != "$flashed" ]; then
+                $FBINK -q -f -g file="$IMG"
+                flashed=$n
+            else
+                $FBINK -q -g file="$IMG"
             fi
         else
             fails=$((fails + 1))
@@ -109,9 +123,40 @@ run() {
     wifi_on
     rlog "exit requested"
     $FBINK -q -c -f -m -y 20 "Exiting AI Monitor..."
-    $FBINK -q -m -y 22 "the Kindle screen returns in about 1 minute"
+    [ "$PAUSED" = 1 ] || $FBINK -q -m -y 22 "the Kindle screen returns in about 1 minute"
     lipc-set-prop com.lab126.powerd preventScreenSaver 0
     rm -f "$STOP" "$IMG" "$IMG.new"
+
+    if [ "$PAUSED" = 1 ]; then
+        # Let the exit tap finish first so it doesn't land on the library once the UI wakes up.
+        sleep 1
+        killall -CONT cvm 2>/dev/null
+        lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
+        # The monitor drew straight to the framebuffer, so ask X to repaint every window.
+        if command -v xrefresh >/dev/null 2>&1; then
+            DISPLAY=:0 xrefresh 2>/dev/null
+        fi
+        i=0
+        app=""
+        while [ $i -lt 10 ]; do
+            app=$(lipc-get-prop com.lab126.appmgrd activeApp 2>/dev/null)
+            case "$app" in *KPPMainApp*) break ;; esac
+            sleep 1
+            i=$((i + 1))
+        done
+        rlog "ui resumed after ${i}s app=$app xrefresh=$(command -v xrefresh)"
+        case "$app" in *KPPMainApp*)
+            sleep 1
+            $FBINK -q -s -f
+            rlog "exit done"
+            return
+            ;;
+        esac
+        # The UI didn't come back from the pause: fall back to a full restart.
+        $FBINK -q -m -y 22 "the Kindle screen returns in about 1 minute"
+        stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
+        sleep 3
+    fi
     start lab126_gui 2>/dev/null || start framework 2>/dev/null
     rlog "gui start returned: $(status lab126_gui 2>&1)"
 
@@ -119,16 +164,26 @@ run() {
     # still report the scriptlet launcher right after the restart, so that value doesn't count.
     # Don't launch app://com.lab126.booklet.home: it doesn't exist on this firmware and shows
     # "the selected application could not be started".
-    sleep 15
-    i=15
-    app=""
-    while [ $i -lt 150 ]; do
-        app=$(lipc-get-prop com.lab126.appmgrd activeApp 2>/dev/null)
-        case "$app" in *KPPMainApp*) break ;; esac
-        sleep 2
-        i=$((i + 2))
+    # If it never shows up (the UI can come back with the scriptlet launcher stuck in front), restart
+    # the UI once more and wait again instead of leaving the exit message on screen.
+    for attempt in 1 2; do
+        sleep 15
+        i=15
+        app=""
+        while [ $i -lt 150 ]; do
+            app=$(lipc-get-prop com.lab126.appmgrd activeApp 2>/dev/null)
+            case "$app" in *KPPMainApp*) break 2 ;; esac
+            sleep 2
+            i=$((i + 2))
+        done
+        [ $attempt = 2 ] && break
+        rlog "library missing after ${i}s app=$app, restarting gui"
+        $FBINK -q -m -y 24 "still loading, restarting the Kindle screen..."
+        stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
+        sleep 3
+        start lab126_gui 2>/dev/null || start framework 2>/dev/null
     done
-    rlog "ui ready after ${i}s app=$app"
+    rlog "ui ready after ${i}s (attempt $attempt) app=$app"
     # Full-screen flash refreshes so whatever the UI drew becomes visible; repeat once in case it
     # was still painting.
     sleep 5
@@ -140,7 +195,7 @@ run() {
 
 # Self-update: replace this file with the Beelink's copy when it differs, then restart from it.
 if [ "$1" != "--run" ] && [ "$1" != "--updated" ]; then
-    if get "$BASE/monitor-ia.sh" /tmp/monitor-ia.sh.new && head -1 /tmp/monitor-ia.sh.new | grep -q '^#!/bin/sh' \
+    if get "$BASE/monitor-ia.sh" /tmp/monitor-ia.sh.new 2>/dev/null && head -1 /tmp/monitor-ia.sh.new | grep -q '^#!/bin/sh' \
         && ! cmp -s /tmp/monitor-ia.sh.new "$0"; then
         cat /tmp/monitor-ia.sh.new >"$0" && echo "$(date) updated script" >>"$LOG"
         rm -f /tmp/monitor-ia.sh.new
