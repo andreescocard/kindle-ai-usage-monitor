@@ -105,7 +105,9 @@ def row(d, x0, x1, y, win, label):
     if reset:
         dt = datetime.fromtimestamp(reset, TZ)
         days = (dt.date() - datetime.now(TZ).date()).days
-        day = "today" if days == 0 else "tomorrow" if days == 1 else DAYS[dt.weekday()]
+        # A weekly reset can land on today's weekday a week from now: "next Wed", not "Wed".
+        day = ("today" if days == 0 else "tomorrow" if days == 1
+               else f"next {DAYS[dt.weekday()]}" if days >= 7 else DAYS[dt.weekday()])
         when = f"{day} {dt:%H:%M}"
         d.text((bx0, y + seg_h + 10 * S), f"resets {when}", font=F_SM, fill=70)
         if pct >= 90:
