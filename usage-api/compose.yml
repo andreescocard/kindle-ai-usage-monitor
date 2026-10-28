@@ -1,0 +1,78 @@
+name: kindle-ai-usage
+services:
+    dashboard:
+        build:
+            context: /DATA/AppData/kindle-ai-usage/app
+            dockerfile: Dockerfile
+        cpu_shares: 90
+        command: []
+        container_name: kindle-ai-usage
+        deploy:
+            resources:
+                limits:
+                    memory: "16534994944"
+        environment:
+            LOCAL_TOKEN: ""
+            POLL_SECONDS: "60"
+            PORT: "8787"
+            TZ: Etc/UTC
+        hostname: kindle-ai-usage
+        healthcheck:
+            test:
+                - CMD
+                - node
+                - -e
+                - fetch('http://127.0.0.1:8787/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+            timeout: 5s
+            interval: 30s
+            retries: 3
+            start_period: 15s
+        image: kindle-ai-usage-dashboard:latest
+        init: true
+        labels:
+            icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/claude-ai.png
+        networks:
+            default: null
+        ports:
+            - mode: ingress
+              target: 8787
+              published: "8787"
+              protocol: tcp
+        restart: unless-stopped
+        security_opt:
+            - no-new-privileges:true
+        stdin_open: true
+        tty: true
+        volumes:
+            - type: bind
+              source: /DATA/AppData/kindle-ai-usage
+              target: /data
+              bind:
+                create_host_path: true
+networks:
+    default:
+        name: kindle-ai-usage_default
+x-casaos:
+    architectures:
+        - amd64
+        - arm64
+    author: andreescocard
+    category: Utilities
+    description:
+        en_us: Kindle-friendly dashboard for Claude Code and Codex subscription usage.
+        pt_br: Dashboard para Kindle com o uso das assinaturas Claude Code e Codex.
+    developer: andreescocard
+    hostname: ""
+    icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/claude-ai.png
+    index: /kindle
+    is_uncontrolled: false
+    main: dashboard
+    port_map: "8787"
+    scheme: http
+    tagline:
+        en_us: AI subscription usage at a glance
+        pt_br: Uso das assinaturas de IA em um relance
+    title:
+        custom: ""
+        en_us: Kindle AI Usage
+        pt_br: Uso de IA no Kindle

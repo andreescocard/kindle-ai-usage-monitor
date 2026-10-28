@@ -1,0 +1,4 @@
+# Adicione com `crontab -e` no servidor.
+# Sobe o renderizador no boot e confere a cada 5 minutos se ele continua rodando.
+@reboot sleep 20 && ~/kindle-monitor/run.sh
+*/5 * * * * ~/kindle-monitor/run.sh
