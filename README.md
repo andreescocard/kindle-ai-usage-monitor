@@ -28,9 +28,9 @@ Each service has two rows:
 - **5h**: the short window, which resets a few hours after the first use.
 - **7d**: the weekly limit.
 
-The 10 blocks fill up with usage. Next to them are the percentage and the time left until the reset, and below them the exact day and time of the reset. From 90% on, a "LIMITE PRÓXIMO" (limit close) warning shows up. The footer shows the Kindle battery, with an estimate of the hours left, and the time of the last update.
+The 10 blocks fill up with usage. Next to them are the percentage and the time left until the reset, and below them the exact day and time of the reset. From 90% on, a "NEAR LIMIT" warning shows up. The footer shows the Kindle battery, with an estimate of the hours left, and the time of the last update.
 
-The on-screen text is in Brazilian Portuguese. All labels live in `server.py` and are easy to translate.
+The on-screen text is in English. The labels live in `server.py` (and in `view.js` for the HTML page), so they are easy to translate. Dates use English weekday names and 24-hour time.
 
 The segmented bar look was inspired by the [Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor) taskbar widget, which I already used on my desktop.
 
@@ -81,7 +81,7 @@ The laptop where I started the project is often turned off, so nothing can depen
 |---|---|
 | `usage-api/` | Node app in Docker that logs in to Claude Code and Codex and serves `/api/usage` as JSON. It also has a simple HTML page at `/kindle`. |
 | `server.py` | Renderer. Reads the JSON and returns the 600x800 PNG at `/kindle.png`. It also serves the Kindle script and receives remote logs. |
-| `kindle/monitor-ia.sh` | Scriptlet that runs on the Kindle. It shows up in the Library as "Monitor IA". |
+| `kindle/monitor-ia.sh` | Scriptlet that runs on the Kindle. It shows up in the Library as "AI Monitor". |
 | `kindle/tela-sempre-ligada.sh`, `kindle/tela-normal.sh` | Shortcuts to turn the screensaver off and back on. |
 | `deploy/` | Startup script and cron entries for the server. |
 
@@ -153,15 +153,15 @@ To render a single test image without starting the server: `uv run --script serv
 
 ### 4. Script on the Kindle
 
-Edit the `BASE=` line in `kindle/monitor-ia.sh` with your server's IP. Then copy the file to the Kindle's `documents` folder over USB. It shows up in the Library as **Monitor IA**.
+Edit the `BASE=` line in `kindle/monitor-ia.sh` with your server's IP. Then copy the file to the Kindle's `documents` folder over USB. It shows up in the Library as **AI Monitor** (the name comes from the `# Name:` header in the script; the file stays `monitor-ia.sh`).
 
 > [!NOTE]
 > You only need USB for this first copy. Every time it opens, the script downloads the version on the server (`/monitor-ia.sh`) and replaces itself if it changed. To update the Kindle, just change the file on the server.
 
 ## Usage
 
-- **Open:** tap "Monitor IA" in the Library. The Kindle UI is stopped and the display shows up within a few seconds.
-- **Exit:** tap anywhere on the screen or press the power button. The Kindle UI comes back in about a minute. Meanwhile the screen shows "Saindo do Monitor IA..." (exiting).
+- **Open:** tap "AI Monitor" in the Library. The Kindle UI is stopped and the display shows up within a few seconds.
+- **Exit:** tap anywhere on the screen or press the power button. The Kindle UI comes back in about a minute. Meanwhile the screen shows "Exiting AI Monitor...".
 - **Logs:** the Kindle sends each important event to the server, which writes it to `~/kindle-monitor/server.log` with a `KINDLE` prefix. This lets you debug without a USB cable. There is also a local log at `/mnt/us/monitor-ia.log`.
 
 ## What the script does on the Kindle
@@ -169,7 +169,7 @@ Edit the `BASE=` line in `kindle/monitor-ia.sh` with your server's IP. Then copy
 1. Sets `preventScreenSaver` so the screen never locks.
 2. Stops the Kindle UI (`stop lab126_gui`). Otherwise the UI redraws over the display and reacts to taps.
 3. Starts a background reader for each input device (`/dev/input/event*`). The first tap or button press ends the monitor.
-4. Every 5 minutes: turns Wi-Fi on, waits for the connection, downloads the PNG with the battery level (`?bat=78&chg=0`), turns Wi-Fi off and redraws only if the image changed. Every 10 updates it does a full, flashing refresh to clear e-ink ghosting.
+4. Every 5 minutes: turns Wi-Fi on, waits for the connection, downloads the PNG with the battery level (`?bat=78&chg=0`), turns Wi-Fi off, waits a few seconds and redraws the image, so nothing the Kindle drew in the meantime (like the airplane icon) stays on top. Every 10 new images it does a full, flashing refresh to clear e-ink ghosting.
 5. If the download fails, it retries every 10 seconds and shows a warning after two failures.
 6. On exit: turns Wi-Fi back on, restores the screensaver, starts the UI again, waits for the Library (`KPPMainApp`) to show up and forces two screen refreshes.
 
@@ -190,14 +190,18 @@ To make it last for days on battery, the way forward would be to suspend the dev
 
 **The Kindle looked frozen while I copied files.** It was just slow USB writes. Waiting was enough.
 
-**Fully white screen when opening the monitor.** After unplugging USB, Wi-Fi takes a while to reconnect and the first download failed. The script now retries every 10 seconds and shows "Sem conexão" (no connection) on screen.
+**Fully white screen when opening the monitor.** After unplugging USB, Wi-Fi takes a while to reconnect and the first download failed. The script now retries every 10 seconds and shows "No connection" on screen.
 
 **"The selected application could not be started" on exit.** I was trying to open the home screen with `app://com.lab126.booklet.home`, which doesn't exist on this firmware. The Library is `com.lab126.KPPMainApp`. I removed the call and now only restart the UI.
 
-**Screen stuck on "Saindo..." even after the UI came back.** Right after the UI restarts, the Kindle still reports the scriptlet launcher as the active app, and the script took that as ready. It now waits 15 seconds, waits specifically for `KPPMainApp` (up to two and a half minutes) and does two full refreshes. 
+**Screen stuck on "Exiting AI Monitor..." even after the UI came back.** Right after the UI restarts, the Kindle still reports the scriptlet launcher as the active app, and the script took that as ready. It now waits 15 seconds and then waits specifically for `KPPMainApp` (up to about two and a half minutes). If the Library still hasn't appeared, it restarts the UI once more and waits again. Then it does two full refreshes.
 
 > [!TIP]
 > If the screen is still stuck, a short press on the power button (sleep and wake) forces a redraw.
+
+**Freezing the UI instead of stopping it.** I tried `killall -STOP cvm` to get an almost instant exit, which is how KOReader does it. On firmware 5.18 the status bar keeps drawing the clock and the airplane icon over the image (`disableEnablePillow` is accepted, `nativeBridge.hideMe()` is rejected), so I went back to stopping the UI.
+
+**Windows line endings break the scriptlet.** Deploying from a Windows checkout with `core.autocrlf` produced `: not found` and `syntax error: unexpected word (expecting "do")` on the Kindle. The repository now has a `.gitattributes` that forces LF.
 
 **Codex login in the container failed with "error sending request for url".** The `node:22-bookworm-slim` image has no root certificates. The `Dockerfile` in this repository already installs `ca-certificates`.
 

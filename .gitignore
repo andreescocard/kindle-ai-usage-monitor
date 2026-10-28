@@ -4,3 +4,4 @@ __pycache__/
 !docs/*.png
 usage-api/node_modules/
 usage-api/.env
+.serena/

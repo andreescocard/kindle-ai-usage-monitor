@@ -1,50 +1,50 @@
-# Kindle AI Usage Dashboard para CasaOS
+# Kindle AI Usage Dashboard for CasaOS
 
-App local em Docker Compose que exibe o uso das assinaturas Claude Code e Codex
-em uma página simples para Kindle. Também oferece uma API JSON sanitizada.
+Local Docker Compose app that shows your Claude Code and Codex subscription
+usage on a simple page made for the Kindle. It also offers a sanitized JSON API.
 
-## Instalar no CasaOS
+## Install on CasaOS
 
-1. Copie esta pasta para o servidor CasaOS (por exemplo,
+1. Copy this folder to the CasaOS server (for example,
    `/DATA/AppData/kindle-ai-usage/app`).
-2. Em **App Store > Custom Install**, importe o arquivo `compose.yml` dessa
-   pasta. Como alternativa, execute `docker compose up -d --build` nela.
-3. Escolha a porta do host alterando `WEB_PORT`; a porta interna permanece 8787.
-4. Inicie o app.
-5. Abra o terminal do container `kindle-ai-usage` e autentique os dois CLIs:
+2. In **App Store > Custom Install**, import the `compose.yml` file from that
+   folder. Alternatively, run `docker compose up -d --build` in it.
+3. Choose the host port by changing `WEB_PORT`; the internal port stays 8787.
+4. Start the app.
+5. Open the terminal of the `kindle-ai-usage` container and log in to both CLIs:
 
 ```sh
 claude auth login
 codex login --device-auth
 ```
 
-Os logins ficam persistidos somente em
-`/DATA/AppData/kindle-ai-usage`. O app lê as credenciais no servidor para
-consultar as APIs de uso, mas nunca as envia para o HTML ou para `/api/usage`.
+The logins are persisted only in
+`/DATA/AppData/kindle-ai-usage`. The app reads the credentials on the server to
+query the usage APIs, but never sends them to the HTML or to `/api/usage`.
 
-Depois, abra:
+Then open:
 
 ```text
-http://IP-DO-CASAOS:PORTA/kindle
+http://CASAOS-IP:PORT/kindle
 ```
 
 API:
 
 ```text
-http://IP-DO-CASAOS:PORTA/api/usage
+http://CASAOS-IP:PORT/api/usage
 ```
 
-## Token local opcional
+## Optional local token
 
-Defina `LOCAL_TOKEN` no Compose para evitar acesso casual por outros aparelhos
-da rede. Nesse caso use:
+Set `LOCAL_TOKEN` in the Compose file to prevent casual access from other
+devices on the network. In that case use:
 
 ```text
-http://IP-DO-CASAOS:PORTA/kindle?token=SEU_TOKEN
-http://IP-DO-CASAOS:PORTA/api/usage?token=SEU_TOKEN
+http://CASAOS-IP:PORT/kindle?token=YOUR_TOKEN
+http://CASAOS-IP:PORT/api/usage?token=YOUR_TOKEN
 ```
 
-## Desenvolvimento
+## Development
 
 ```sh
 npm test
@@ -52,6 +52,8 @@ docker compose build
 docker compose up -d
 ```
 
-O polling é independente por provedor e ocorre a cada 300 segundos. Um erro no
-Claude não bloqueia o Codex, e vice-versa. O HTML não usa JavaScript, frameworks,
-CDNs ou fontes externas e mantém `meta refresh` como fallback para o Kindle.
+Polling is independent per provider and runs every 300 seconds by default
+(`POLL_SECONDS`; the provided `compose.yml` sets it to 60). An error in
+Claude does not block Codex, and vice versa. The HTML uses no JavaScript,
+frameworks, CDNs or external fonts and keeps `meta refresh` as a fallback for
+the Kindle.
