@@ -63,7 +63,12 @@ run() {
     if killall -STOP cvm 2>/dev/null; then
         PAUSED=1
         # The status bar (pillow) runs outside cvm and keeps drawing the clock: hide it too.
+        # Newer firmware ignores disableEnablePillow for the clock, so also ask the bar to hide itself.
         lipc-set-prop com.lab126.pillow disableEnablePillow disable 2>/dev/null
+        pillow_rc=$?
+        lipc-set-prop com.lab126.pillow interrogatePillow \
+            '{"pillowId": "default_status_bar", "function": "nativeBridge.hideMe();"}' 2>/dev/null
+        rlog "pillow disable=$pillow_rc hide=$?"
     else
         stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
     fi
@@ -132,6 +137,8 @@ run() {
         sleep 1
         killall -CONT cvm 2>/dev/null
         lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
+        lipc-set-prop com.lab126.pillow interrogatePillow \
+            '{"pillowId": "default_status_bar", "function": "nativeBridge.showMe();"}' 2>/dev/null
         # The monitor drew straight to the framebuffer, so ask X to repaint every window.
         if command -v xrefresh >/dev/null 2>&1; then
             DISPLAY=:0 xrefresh 2>/dev/null
