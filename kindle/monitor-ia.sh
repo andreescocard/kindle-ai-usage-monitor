@@ -56,23 +56,10 @@ run() {
     rlog "start bat=$(battery)"
     lipc-set-prop com.lab126.powerd preventScreenSaver 1
     lipc-set-prop com.lab126.cmd wirelessEnable 1 2>/dev/null
-    # Freeze the Kindle UI (the cvm Java process) so it doesn't redraw over the monitor or react to
-    # taps. Resuming it on exit takes seconds; restarting lab126_gui takes about a minute.
-    # Without cvm, fall back to stopping the UI.
-    PAUSED=0
-    if killall -STOP cvm 2>/dev/null; then
-        PAUSED=1
-        # The status bar (pillow) runs outside cvm and keeps drawing the clock: hide it too.
-        # Newer firmware ignores disableEnablePillow for the clock, so also ask the bar to hide itself.
-        lipc-set-prop com.lab126.pillow disableEnablePillow disable 2>/dev/null
-        pillow_rc=$?
-        lipc-set-prop com.lab126.pillow interrogatePillow \
-            '{"pillowId": "default_status_bar", "function": "nativeBridge.hideMe();"}' 2>/dev/null
-        rlog "pillow disable=$pillow_rc hide=$?"
-    else
-        stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
-    fi
-    rlog "ui paused=$PAUSED app=$(lipc-get-prop com.lab126.appmgrd activeApp 2>/dev/null)"
+    # Stop the Kindle UI so it doesn't redraw over the monitor or react to taps. Freezing cvm
+    # instead (killall -STOP) exits faster, but the status bar keeps drawing the clock and the
+    # airplane icon over the image on this firmware.
+    stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
     sleep 2
     $FBINK -q -c -f -m -y 20 "AI Monitor - connecting..."
 
@@ -128,42 +115,12 @@ run() {
     wifi_on
     rlog "exit requested"
     $FBINK -q -c -f -m -y 20 "Exiting AI Monitor..."
-    [ "$PAUSED" = 1 ] || $FBINK -q -m -y 22 "the Kindle screen returns in about 1 minute"
+    $FBINK -q -m -y 22 "the Kindle screen returns in about 1 minute"
     lipc-set-prop com.lab126.powerd preventScreenSaver 0
     rm -f "$STOP" "$IMG" "$IMG.new"
-
-    if [ "$PAUSED" = 1 ]; then
-        # Let the exit tap finish first so it doesn't land on the library once the UI wakes up.
-        sleep 1
-        killall -CONT cvm 2>/dev/null
-        lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
-        lipc-set-prop com.lab126.pillow interrogatePillow \
-            '{"pillowId": "default_status_bar", "function": "nativeBridge.showMe();"}' 2>/dev/null
-        # The monitor drew straight to the framebuffer, so ask X to repaint every window.
-        if command -v xrefresh >/dev/null 2>&1; then
-            DISPLAY=:0 xrefresh 2>/dev/null
-        fi
-        i=0
-        app=""
-        while [ $i -lt 10 ]; do
-            app=$(lipc-get-prop com.lab126.appmgrd activeApp 2>/dev/null)
-            case "$app" in *KPPMainApp*) break ;; esac
-            sleep 1
-            i=$((i + 1))
-        done
-        rlog "ui resumed after ${i}s app=$app xrefresh=$(command -v xrefresh)"
-        case "$app" in *KPPMainApp*)
-            sleep 1
-            $FBINK -q -s -f
-            rlog "exit done"
-            return
-            ;;
-        esac
-        # The UI didn't come back from the pause: fall back to a full restart.
-        $FBINK -q -m -y 22 "the Kindle screen returns in about 1 minute"
-        stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
-        sleep 3
-    fi
+    # Undo what an earlier pause-based version may have left behind (frozen cvm, hidden status bar).
+    killall -CONT cvm 2>/dev/null
+    lipc-set-prop com.lab126.pillow disableEnablePillow enable 2>/dev/null
     start lab126_gui 2>/dev/null || start framework 2>/dev/null
     rlog "gui start returned: $(status lab126_gui 2>&1)"
 
