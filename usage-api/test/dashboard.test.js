@@ -20,7 +20,7 @@ test("renders a script-free Kindle page with five-minute fallback", () => {
   const html = renderDashboard(snapshot, now);
   assert.match(html, /http-equiv="refresh" content="300"/);
   assert.match(html, /CLAUDE CODE/);
-  assert.match(html, /Não autenticado/);
+  assert.match(html, /Not signed in/);
   assert.doesNotMatch(html, /<script/);
 });
 

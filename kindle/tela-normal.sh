@@ -1,5 +1,5 @@
 #!/bin/sh
-# Name: Tela normal
+# Name: Normal screen
 # Author: aescocard
-# Volta o descanso de tela ao comportamento padrão.
+# Restores the screensaver to its default behavior.
 lipc-set-prop com.lab126.powerd preventScreenSaver 0

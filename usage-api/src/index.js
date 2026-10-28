@@ -58,7 +58,7 @@ createServer((request, response) => {
     return;
   }
   if (!authorized(url)) {
-    response.writeHead(401, { ...noCache, "content-type": "text/plain; charset=utf-8" }).end("Não autorizado");
+    response.writeHead(401, { ...noCache, "content-type": "text/plain; charset=utf-8" }).end("Unauthorized");
     return;
   }
   if (request.method !== "GET") {

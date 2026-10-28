@@ -39,9 +39,9 @@ F_SM, F_SMB = font(17), font(17, True)
 F_MSG = font(20, True)
 
 STATUS_MSG = {
-    "not_authenticated": ("Não autenticado", "faça login no container kindle-ai-usage"),
-    "auth_expired": ("Login expirado", "faça login de novo no container"),
-    "unavailable": ("Serviço indisponível", "tentando novamente"),
+    "not_authenticated": ("Not signed in", "sign in on the kindle-ai-usage container"),
+    "auth_expired": ("Sign-in expired", "sign in again on the container"),
+    "unavailable": ("Service unavailable", "retrying"),
 }
 
 
@@ -58,7 +58,7 @@ def fetch_usage():
 
 # ---------- render ----------
 
-DIAS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
 SEGMENTS = 10
@@ -105,11 +105,11 @@ def row(d, x0, x1, y, win, label):
     if reset:
         dt = datetime.fromtimestamp(reset, TZ)
         days = (dt.date() - datetime.now(TZ).date()).days
-        day = "hoje" if days == 0 else "amanhã" if days == 1 else DIAS[dt.weekday()]
+        day = "today" if days == 0 else "tomorrow" if days == 1 else DAYS[dt.weekday()]
         when = f"{day} {dt:%H:%M}"
-        d.text((bx0, y + seg_h + 10 * S), f"reseta {when}", font=F_SM, fill=70)
+        d.text((bx0, y + seg_h + 10 * S), f"resets {when}", font=F_SM, fill=70)
         if pct >= 90:
-            d.text((bx1, y + seg_h + 10 * S), "LIMITE PRÓXIMO", font=F_SMB, fill=0, anchor="ra")
+            d.text((bx1, y + seg_h + 10 * S), "NEAR LIMIT", font=F_SMB, fill=0, anchor="ra")
 
 
 def card(d, top, name, p):
@@ -132,7 +132,7 @@ def card(d, top, name, p):
         if win:
             row(d, rx0, rx1, y, win, label)
         else:
-            d.text((rx0, y), f"{label}: sem dados", font=F_ROWLBL, fill=120)
+            d.text((rx0, y), f"{label}: no data", font=F_ROWLBL, fill=120)
 
 
 # (timestamp, level) samples since the Kindle was last unplugged, to estimate drain rate.
@@ -157,7 +157,7 @@ def battery_estimate(level, charging):
 
 
 def draw_battery(d, x, y, level, charging):
-    """Battery icon + "78%" (+ "carregando" or "~20h restantes") at the bottom-left."""
+    """Battery icon + "78%" (+ "charging" or "~20h left") at the bottom-left."""
     bw, bh = 34 * S, 17 * S
     d.rounded_rectangle((x, y, x + bw, y + bh), 3 * S, outline=0, width=2 * S)
     d.rectangle((x + bw, y + 5 * S, x + bw + 3 * S, y + bh - 5 * S), fill=0)
@@ -170,11 +170,11 @@ def draw_battery(d, x, y, level, charging):
                    (cx + 5 * S, cy - 1 * S), (cx, cy - 1 * S)], fill=255 if level > 55 else 0)
     label = f"{level}%"
     if charging:
-        label += " · carregando"
+        label += " · charging"
     else:
         left = battery_estimate(level, charging)
         if left is not None:
-            label += f" · ~{left:.0f}h restantes" if left >= 1 else " · <1h restante"
+            label += f" · ~{left:.0f}h left" if left >= 1 else " · <1h left"
     d.text((x + bw + 10 * S, y + bh / 2), label, font=F_SMB if level <= 15 and not charging else F_SM, fill=0,
            anchor="lm")
 
@@ -184,8 +184,8 @@ def render(battery=None, charging=False):
     d = ImageDraw.Draw(img)
     now = datetime.now(TZ)
 
-    d.text((22 * S, 18 * S), "Limites de IA", font=F_TITLE, fill=0)
-    d.text(((W - 22) * S, 22 * S), f"{DIAS[now.weekday()]} {now:%H:%M}", font=F_CLOCK, fill=0, anchor="ra")
+    d.text((22 * S, 18 * S), "AI Limits", font=F_TITLE, fill=0)
+    d.text(((W - 22) * S, 22 * S), f"{DAYS[now.weekday()]} {now:%H:%M}", font=F_CLOCK, fill=0, anchor="ra")
 
     try:
         snap, err = fetch_usage(), None
@@ -195,12 +195,12 @@ def render(battery=None, charging=False):
     card(d, 400 * S, "Codex", snap.get("codex"))
 
     if err:
-        foot = "dashboard indisponível no Beelink"
+        foot = "dashboard unavailable on the Beelink"
     else:
         upd = parse_ts(snap.get("updatedAt"))
-        foot = f"atualizado {datetime.fromtimestamp(upd, TZ):%H:%M}" if upd else ""
+        foot = f"updated {datetime.fromtimestamp(upd, TZ):%H:%M}" if upd else ""
         if snap.get("stale"):
-            foot = "DADOS ANTIGOS · " + foot
+            foot = "STALE DATA · " + foot
     if battery is not None:
         if charging:
             battery_estimate(battery, True)
@@ -210,7 +210,7 @@ def render(battery=None, charging=False):
     else:
         d.text((W * S // 2, (H - 38) * S), foot, font=F_SMB if err or snap.get("stale") else F_SM, fill=0,
                anchor="ms")
-    d.text((W * S // 2, (H - 14) * S), "toque na tela para sair", font=F_SM, fill=120, anchor="ms")
+    d.text((W * S // 2, (H - 14) * S), "tap the screen to exit", font=F_SM, fill=120, anchor="ms")
 
     out = img.resize((W, H), Image.LANCZOS)
     buf = BytesIO()

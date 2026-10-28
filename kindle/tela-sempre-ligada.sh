@@ -1,5 +1,5 @@
 #!/bin/sh
-# Name: Tela sempre ligada
+# Name: Screen always on
 # Author: aescocard
-# Impede o descanso de tela até rodar "Tela normal" ou reiniciar o Kindle.
+# Prevents the screensaver until you run "Normal screen" or restart the Kindle.
 lipc-set-prop com.lab126.powerd preventScreenSaver 1

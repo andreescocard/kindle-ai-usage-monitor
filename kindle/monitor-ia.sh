@@ -1,5 +1,5 @@
 #!/bin/sh
-# Name: Monitor IA
+# Name: AI Monitor
 # Author: aescocard
 # Shows Claude Code / Codex usage limits rendered by kindle-monitor/server.py on the Beelink.
 # Touch the screen (or press power) to exit.
@@ -59,7 +59,7 @@ run() {
     # Stop the Kindle UI so it doesn't redraw over the monitor or react to taps.
     stop lab126_gui 2>/dev/null || stop framework 2>/dev/null
     sleep 2
-    $FBINK -q -c -f -m -y 20 "Monitor IA - conectando..."
+    $FBINK -q -c -f -m -y 20 "AI Monitor - connecting..."
 
     # Any input event (touch, power button) ends the monitor.
     for e in /dev/input/event*; do
@@ -88,9 +88,9 @@ run() {
             echo "$(date) fetch failed ($fails)" >>"$LOG"
             if [ $fails -eq 2 ]; then
                 if [ -f "$IMG" ]; then
-                    $FBINK -q -m -y -3 "Beelink offline - mostrando os ultimos dados"
+                    $FBINK -q -m -y -3 "Beelink offline - showing last data"
                 else
-                    $FBINK -q -m -y 22 "Sem conexao - verifique o Wi-Fi (toque para sair)"
+                    $FBINK -q -m -y 22 "No connection - check Wi-Fi (tap to exit)"
                 fi
             fi
         fi
@@ -108,8 +108,8 @@ run() {
     # Leave Wi-Fi on for normal use (and for the remote log).
     wifi_on
     rlog "exit requested"
-    $FBINK -q -c -f -m -y 20 "Saindo do Monitor IA..."
-    $FBINK -q -m -y 22 "a tela do Kindle volta em cerca de 1 minuto"
+    $FBINK -q -c -f -m -y 20 "Exiting AI Monitor..."
+    $FBINK -q -m -y 22 "the Kindle screen returns in about 1 minute"
     lipc-set-prop com.lab126.powerd preventScreenSaver 0
     rm -f "$STOP" "$IMG" "$IMG.new"
     start lab126_gui 2>/dev/null || start framework 2>/dev/null
